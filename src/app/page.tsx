@@ -1,103 +1,194 @@
-import Image from "next/image";
+"use client";
+import { useMemo, useState } from "react";
 
-export default function Home() {
+/* ----------------------- Tipos ----------------------- */
+type EventItem = {
+  id: string;
+  title: string;
+  dateISO: string; // YYYY-MM-DD
+  mode: "Solo" | "Dúos" | "Escuadra" | "Custom";
+  prize: string;
+  entry: string;
+  region: string;
+  rules?: string;
+  registerUrl?: string;
+};
+
+/* ----------------------- Tipado Ethereum ----------------------- */
+interface EthereumWindow extends Window {
+  ethereum?: {
+    request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  };
+}
+
+/* ----------------------- Datos ----------------------- */
+const EVENTS: EventItem[] = [
+  {
+    id: "fyf-open-001",
+    title: "FYF Open #1 – COD Mobile",
+    dateISO: "2025-09-28",
+    mode: "Escuadra",
+    prize: "$100 en FYF",
+    entry: "Gratis",
+    region: "LATAM",
+    rules: "Partidas BR, mejor de 3. Anti-cheat estricto.",
+    registerUrl: "https://t.me/+B7QvutUIkGVhNmUx",
+  },
+  {
+    id: "fyf-duos-002",
+    title: "Dúos Tácticos – Edición FYF",
+    dateISO: "2025-10-05",
+    mode: "Dúos",
+    prize: "Skins + 5,000 FYF",
+    entry: "5 FYF",
+    region: "Global",
+    rules: "MP rankeado, límite de 2 dispositivos por equipo.",
+    registerUrl: "https://t.me/+B7QvutUIkGVhNmUx",
+  },
+  {
+    id: "fyf-solo-003",
+    title: "Solo Snipers Night",
+    dateISO: "2025-10-12",
+    mode: "Solo",
+    prize: "Top 3: 3,000 / 1,500 / 500 FYF",
+    entry: "Gratis",
+    region: "LATAM",
+    rules: "Sólo francotiradores, sin perks explosivos.",
+  },
+];
+
+/* ----------------------- Página ----------------------- */
+export default function Page() {
+  const [wallet, setWallet] = useState<string | null>(null);
+  const [showEvents, setShowEvents] = useState(true);
+
+  // Configuración básica
+  const TOKEN_NAME = "FireYouFire";
+  const TOKEN_SYMBOL = "FYF";
+  const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae";
+  const PANCAKE_SWAP_LINK = `https://pancakeswap.finance/swap?outputCurrency=${TOKEN_ADDRESS}`;
+
+  // Separar próximos vs pasados
+  const { upcoming, past } = useMemo(() => {
+    const today = new Date();
+    const sorted = [...EVENTS].sort(
+      (a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime()
+    );
+    const up = sorted.filter((e) => new Date(e.dateISO) >= new Date(today.toDateString()));
+    const pa = sorted.filter((e) => new Date(e.dateISO) < new Date(today.toDateString())).reverse();
+    return { upcoming: up, past: pa };
+  }, []);
+
+  // Conectar MetaMask
+  const connectWallet = async () => {
+    const ethWindow = window as EthereumWindow;
+    if (!ethWindow.ethereum) {
+      alert("Instala MetaMask para conectar tu wallet");
+      return;
+    }
+    try {
+      const accounts = (await ethWindow.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+      setWallet(accounts[0]);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo conectar la wallet");
+    }
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="min-h-screen pb-16 bg-black text-white">
+      {/* Header */}
+      <header className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-red-600 grid place-items-center shadow-lg">
+            <span className="font-black">FYF</span>
+          </div>
+          <div>
+            <div className="text-lg font-bold">
+              {TOKEN_NAME} <span className="text-red-500">({TOKEN_SYMBOL})</span>
+            </div>
+            <div className="text-xs text-neutral-300">Play • Earn • Fire</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowEvents(!showEvents)}
+            className="px-4 py-2 rounded-full border border-white/20 hover:bg-white/10 text-sm"
+          >
+            {showEvents ? "Ocultar eventos" : "Ver eventos"}
+          </button>
+          <button
+            onClick={wallet ? undefined : connectWallet}
+            className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 shadow"
+          >
+            {wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "Conectar Wallet"}
+          </button>
+        </div>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
+      {/* Compra rápida */}
+      <section className="max-w-6xl mx-auto px-4">
+        <div className="rounded-2xl p-6 shadow-lg border border-neutral-800 bg-white/5">
+          <h2 className="text-2xl font-extrabold mb-2">Compra rápida</h2>
+          <p className="text-neutral-300">Compra el token en PancakeSwap:</p>
           <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            href={PANCAKE_SWAP_LINK}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noreferrer"
+            className="inline-block mt-4 px-5 py-3 rounded-xl bg-white text-black font-semibold hover:bg-neutral-200"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
+            💱 PancakeSwap
           </a>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </section>
+
+      {/* Eventos */}
+      {showEvents && (
+        <section className="max-w-6xl mx-auto px-4 mt-10">
+          <h2 className="text-2xl font-extrabold">Eventos & Torneos – COD Mobile</h2>
+          <div className="mt-5">
+            <h3 className="text-lg font-bold text-green-400">Próximos</h3>
+            {upcoming.length === 0 ? (
+              <p className="text-neutral-400 mt-2">No hay torneos próximos.</p>
+            ) : (
+              <div className="mt-3 grid md:grid-cols-2 gap-4">
+                {upcoming.map((ev) => (
+                  <EventCard key={ev.id} ev={ev} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+    </main>
   );
 }
+
+/* ----------------------- Componentes ----------------------- */
+function EventCard({ ev }: { ev: EventItem }) {
+  const date = new Date(ev.dateISO);
+  const pretty = date.toLocaleDateString();
+
+  return (
+    <article className="rounded-2xl p-5 border shadow-lg border-red-800/40 bg-gradient-to-br from-red-900/20 to-black">
+      <h4 className="text-lg font-bold">{ev.title}</h4>
+      <p className="text-sm text-neutral-400">{pretty} • {ev.region}</p>
+      <p className="mt-2 text-sm">Premio: {ev.prize}</p>
+      <p className="text-sm">Entrada: {ev.entry}</p>
+      {ev.rules && <p className="mt-2 text-xs text-neutral-400">{ev.rules}</p>}
+      {ev.registerUrl && (
+        <a
+          href={ev.registerUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block mt-3 px-4 py-2 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300"
+        >
+          Registrarme
+        </a>
+      )}
+    </article>
+  );
+}
+
