@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
+import { registerPlayerOnCall } from "../lib/firebaseClient"; // 👈 importamos helper
 
 /* ----------------------- Tipos ----------------------- */
 type EventItem = {
@@ -151,14 +152,37 @@ export default function Page() {
           <h2 className="text-xl font-extrabold mb-3">Registro de jugador</h2>
           {wallet ? (
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const nickname = (
                   e.currentTarget.elements.namedItem(
                     "nickname"
                   ) as HTMLInputElement
                 ).value;
-                alert(`Registrado: ${nickname} con wallet ${wallet}`);
+
+                try {
+                  const txHash = prompt("👉 Ingresa el ID de la transacción de MetaMask:");
+                  if (!txHash) {
+                    alert("Debes ingresar un hash válido");
+                    return;
+                  }
+
+                  const result: any = await registerPlayerOnCall({
+                    wallet,
+                    nickname,
+                    eventId: "fyf-open-001", // 👈 aquí defines el evento
+                    txHash,
+                  });
+
+                  if (result.success) {
+                    alert(`✅ Registrado: ${nickname} con wallet ${wallet}`);
+                  } else {
+                    alert(`❌ Error: ${result.error}`);
+                  }
+                } catch (err) {
+                  console.error(err);
+                  alert("❌ No se pudo registrar el jugador");
+                }
               }}
               className="flex flex-col gap-3"
             >
