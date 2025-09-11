@@ -14,14 +14,22 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const functions = getFunctions(app);
 
-// 🔹 Exportar helper para registrar jugador
+// 🔹 Tipo de respuesta esperado desde la Cloud Function
+export type RegisterResponse = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
+
+// 🔹 Helper para llamar a la función de Firebase
 export async function registerPlayerOnCall(data: {
   wallet: string;
   nickname: string;
   eventId: string;
   txHash: string;
-}) {
-  const callable = httpsCallable(functions, "registerPlayer");
+}): Promise<RegisterResponse> {
+  const callable = httpsCallable<RegisterResponse>(functions, "registerPlayer");
   const res = await callable(data);
   return res.data;
 }
+

@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
-import { registerPlayerOnCall } from "../lib/firebaseClient"; // 👈 importamos helper
+import { registerPlayerOnCall } from "../lib/firebaseClient";
 
 /* ----------------------- Tipos ----------------------- */
 type EventItem = {
@@ -14,12 +14,6 @@ type EventItem = {
   region: string;
   rules?: string;
   registerUrl?: string;
-};
-
-type RegisterResponse = {
-  success?: boolean;
-  message?: string;
-  error?: string;
 };
 
 interface EthereumWindow extends Window {
@@ -173,7 +167,7 @@ export default function Page() {
                     return;
                   }
 
-                  const result: RegisterResponse = await registerPlayerOnCall({
+                  const result = await registerPlayerOnCall({
                     wallet,
                     nickname,
                     eventId: "fyf-open-001", // 👈 aquí defines el evento
