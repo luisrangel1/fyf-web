@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { db } from "./firebase"; // Asegúrate de tener tu firebase.ts
+import { db, functions } from "../firebase"; // ✅ Import corregido
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 /* ----------------------- Tipos ----------------------- */
@@ -10,7 +10,7 @@ type EventItem = {
   id: string;
   title: string;
   dateISO: string;
-  mode: string;
+  mode: "Solo" | "Dúos" | "Escuadra" | "Custom";
   prize: string;
   entry: string;
   region: string;
@@ -18,183 +18,143 @@ type EventItem = {
   registerUrl?: string;
 };
 
-interface EthereumWindow extends Window {
-  ethereum?: any;
-}
-
-/* ----------------------- Eventos ----------------------- */
+/* ----------------------- Datos ----------------------- */
 const EVENTS: EventItem[] = [
   {
-    id: "fyf-br-apertura",
-    title: "🔥 Apertura FYF – Battle Royale",
-    dateISO: "2025-03-16",
-    mode: "BR (20 jugadores)",
+    id: "fyf-br-001",
+    title: "Apertura FYF – BR Modo",
+    dateISO: "2025-09-16",
+    mode: "Solo",
     prize: "1 USD en FYF por cada kill",
     entry: "15 FYF",
     region: "Global",
-    rules: "Solo 20 participantes, 1 cuenta por jugador.",
+    rules: "Máx. 20 jugadores. BR clásico.",
   },
 ];
 
 /* ----------------------- Página ----------------------- */
 export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
-  const [nickname, setNickname] = useState("");
-  const [players, setPlayers] = useState<{ nickname: string; wallet: string }[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [showEvents, setShowEvents] = useState(true);
 
+  const TOKEN_NAME = "FireYouFire";
+  const TOKEN_SYMBOL = "FYF";
   const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae";
-  const TREASURY_ADDRESS = "0x290117a497f83aA436Eeca928b4a8Fa3857ed829";
-  const ENTRY_FEE = "15";
-
-  const TOKEN_ABI = [
-    "function transfer(address to, uint256 amount) public returns (bool)",
-    "function decimals() public view returns (uint8)",
-  ];
+  const PANCAKE_SWAP_LINK = `https://pancakeswap.finance/swap?outputCurrency=${TOKEN_ADDRESS}`;
 
   const { upcoming } = useMemo(() => {
     const today = new Date();
     const sorted = [...EVENTS].sort(
       (a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime()
     );
-    const up = sorted.filter((e) => new Date(e.dateISO) >= today);
+    const up = sorted.filter(
+      (e) => new Date(e.dateISO) >= new Date(today.toDateString())
+    );
     return { upcoming: up };
   }, []);
 
   // Conectar MetaMask
   const connectWallet = async () => {
-    const ethWindow = window as EthereumWindow;
+    const ethWindow = window as typeof window & {
+      ethereum?: {
+        request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      };
+    };
+
     if (!ethWindow.ethereum) {
-      alert("Instala MetaMask");
+      alert("Instala MetaMask para conectar tu wallet");
       return;
     }
+
     try {
-      const accounts = await ethWindow.ethereum.request({ method: "eth_requestAccounts" });
+      const accounts = (await ethWindow.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
       setWallet(accounts[0]);
     } catch (err) {
       console.error(err);
+      alert("No se pudo conectar la wallet");
     }
   };
 
-  // Registro y pago
-  const registerAndPay = async () => {
-    if (!wallet || !nickname) {
-      alert("Conecta tu wallet y escribe tu nick.");
-      return;
-    }
-
-    setLoading(true);
+  // Registrar jugador en Firebase
+  const registerPlayer = async (nickname: string, eventId: string, txHash: string) => {
     try {
-      const provider = new ethers.BrowserProvider((window as EthereumWindow).ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, signer);
-
-      const decimals = await contract.decimals();
-      const amount = ethers.parseUnits(ENTRY_FEE, decimals);
-
-      // Enviar transacción
-      const tx = await contract.transfer(TREASURY_ADDRESS, amount);
-      await tx.wait();
-
-      // Llamar a Cloud Function para verificar
-      const functions = getFunctions();
-      const verifyAndRegister = httpsCallable(functions, "verifyAndRegister");
-      const result = await verifyAndRegister({
-        txHash: tx.hash,
-        nickname,
-        wallet,
-        eventId: "fyf-br-apertura",
-      });
-
-      alert("✅ Registro confirmado en backend: " + (result.data as any).message);
+      const callable = httpsCallable(functions, "registerPlayer");
+      const res = await callable({ wallet, nickname, eventId, txHash });
+      alert("✅ Registro exitoso en Firebase");
+      console.log("Respuesta:", res);
     } catch (err) {
       console.error(err);
-      alert("❌ Error en el registro");
-    } finally {
-      setLoading(false);
+      alert("❌ No se pudo registrar en Firebase");
     }
   };
-
-  // Suscripción en tiempo real a jugadores
-  useMemo(() => {
-    const q = query(collection(db, "registrations"), where("eventId", "==", "fyf-br-apertura"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list: { nickname: string; wallet: string }[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data() as any;
-        list.push({ nickname: data.nickname, wallet: data.wallet });
-      });
-      setPlayers(list);
-    });
-    return () => unsub();
-  }, []);
 
   return (
     <main className="min-h-screen pb-16 bg-black text-white">
-      <header className="p-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">🔥 FireYouFire</h1>
-        <button
-          onClick={wallet ? undefined : connectWallet}
-          className="px-4 py-2 rounded bg-red-600 hover:bg-red-700"
-        >
-          {wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "Conectar Wallet"}
-        </button>
+      {/* Header */}
+      <header className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-red-600 grid place-items-center shadow-lg">
+            <span className="font-black">FYF</span>
+          </div>
+          <div>
+            <div className="text-lg font-bold">
+              {TOKEN_NAME} <span className="text-red-500">({TOKEN_SYMBOL})</span>
+            </div>
+            <div className="text-xs text-neutral-300">Play • Earn • Fire</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowEvents(!showEvents)}
+            className="px-4 py-2 rounded-full border border-white/20 hover:bg-white/10 text-sm"
+          >
+            {showEvents ? "Ocultar eventos" : "Ver eventos"}
+          </button>
+          <button
+            onClick={wallet ? undefined : connectWallet}
+            className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 shadow"
+          >
+            {wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "Conectar Wallet"}
+          </button>
+        </div>
       </header>
 
-      <section className="max-w-3xl mx-auto p-6">
-        <h2 className="text-2xl font-extrabold mb-4">Evento disponible</h2>
-        {upcoming.map((ev) => (
-          <div key={ev.id} className="p-4 border rounded mb-4 bg-white/10">
-            <h3 className="text-xl font-bold">{ev.title}</h3>
-            <p className="text-sm text-neutral-300">{ev.prize}</p>
-            <p className="mt-2">Entrada: {ev.entry}</p>
-
-            {wallet && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  registerAndPay();
-                }}
-                className="mt-3 flex gap-2"
+      {/* Registro de jugador */}
+      <section className="max-w-6xl mx-auto px-4 mt-6">
+        <div className="rounded-2xl p-6 shadow-lg border border-neutral-800 bg-white/5">
+          <h2 className="text-xl font-extrabold mb-3">Registro de jugador</h2>
+          {wallet ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const nickname = (e.currentTarget.elements.namedItem(
+                  "nickname"
+                ) as HTMLInputElement).value;
+                const txHash = "0x-demo-hash"; // Aquí debería ir el hash real del pago
+                registerPlayer(nickname, "fyf-br-001", txHash);
+              }}
+              className="flex flex-col gap-3"
+            >
+              <input
+                type="text"
+                name="nickname"
+                placeholder="Tu nick en COD Mobile"
+                className="px-4 py-2 rounded-lg text-black"
+                required
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 font-bold"
               >
-                <input
-                  type="text"
-                  placeholder="Tu nick en COD Mobile"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  className="px-3 py-2 rounded text-black"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-700"
-                >
-                  {loading ? "Procesando..." : "Registrar y pagar"}
-                </button>
-              </form>
-            )}
-          </div>
-        ))}
-
-        <h2 className="text-xl font-bold mt-6">👥 Jugadores registrados</h2>
-        {players.length === 0 ? (
-          <p className="text-neutral-400 mt-2">Nadie registrado aún.</p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {players.map((p, i) => (
-              <li
-                key={i}
-                className="px-4 py-2 bg-white/5 border border-white/10 rounded flex justify-between"
-              >
-                <span>{p.nickname}</span>
-                <span className="text-xs text-neutral-400">
-                  {p.wallet.slice(0, 6)}…{p.wallet.slice(-4)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+                Registrar
+              </button>
+            </form>
+          ) : (
+            <p className="text-neutral-400">Conecta tu wallet para registrarte.</p>
+          )}
+        </div>
       </section>
     </main>
   );
