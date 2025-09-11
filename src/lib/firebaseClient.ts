@@ -14,7 +14,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const functions = getFunctions(app);
 
-// 🔹 Tipo de respuesta esperado desde la Cloud Function
+// 🔹 Tipo de entrada
+export type RegisterData = {
+  wallet: string;
+  nickname: string;
+  eventId: string;
+  txHash: string;
+};
+
+// 🔹 Tipo de salida
 export type RegisterResponse = {
   success?: boolean;
   message?: string;
@@ -22,14 +30,10 @@ export type RegisterResponse = {
 };
 
 // 🔹 Helper para llamar a la función de Firebase
-export async function registerPlayerOnCall(data: {
-  wallet: string;
-  nickname: string;
-  eventId: string;
-  txHash: string;
-}): Promise<RegisterResponse> {
-  const callable = httpsCallable<RegisterResponse>(functions, "registerPlayer");
+export async function registerPlayerOnCall(data: RegisterData): Promise<RegisterResponse> {
+  const callable = httpsCallable<RegisterData, RegisterResponse>(functions, "registerPlayer");
   const res = await callable(data);
   return res.data;
 }
+
 
