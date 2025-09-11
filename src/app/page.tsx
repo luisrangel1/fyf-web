@@ -1,15 +1,11 @@
 "use client";
 import { useMemo, useState } from "react";
-import { ethers } from "ethers";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { db, functions } from "../firebase"; // ✅ Import corregido
-import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 /* ----------------------- Tipos ----------------------- */
 type EventItem = {
   id: string;
   title: string;
-  dateISO: string;
+  dateISO: string; // YYYY-MM-DD
   mode: "Solo" | "Dúos" | "Escuadra" | "Custom";
   prize: string;
   entry: string;
@@ -18,17 +14,25 @@ type EventItem = {
   registerUrl?: string;
 };
 
+// Tipado para window.ethereum
+interface EthereumWindow extends Window {
+  ethereum?: {
+    request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  };
+}
+
 /* ----------------------- Datos ----------------------- */
 const EVENTS: EventItem[] = [
   {
-    id: "fyf-br-001",
-    title: "Apertura FYF – BR Modo",
-    dateISO: "2025-09-16",
-    mode: "Solo",
-    prize: "1 USD en FYF por cada kill",
-    entry: "15 FYF",
-    region: "Global",
-    rules: "Máx. 20 jugadores. BR clásico.",
+    id: "fyf-open-001",
+    title: "FYF Open #1 – COD Mobile",
+    dateISO: "2025-09-28",
+    mode: "Escuadra",
+    prize: "$100 en FYF",
+    entry: "Gratis",
+    region: "LATAM",
+    rules: "Partidas BR, mejor de 3. Anti-cheat estricto.",
+    registerUrl: "https://t.me/+B7QvutUIkGVhNmUx",
   },
 ];
 
@@ -37,56 +41,37 @@ export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [showEvents, setShowEvents] = useState(true);
 
+  // 🔧 Configuración básica
   const TOKEN_NAME = "FireYouFire";
   const TOKEN_SYMBOL = "FYF";
   const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae";
-  const PANCAKE_SWAP_LINK = `https://pancakeswap.finance/swap?outputCurrency=${TOKEN_ADDRESS}`;
 
-  const { upcoming } = useMemo(() => {
+  // Separar próximos vs pasados
+  const { upcoming, past } = useMemo(() => {
     const today = new Date();
     const sorted = [...EVENTS].sort(
       (a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime()
     );
-    const up = sorted.filter(
-      (e) => new Date(e.dateISO) >= new Date(today.toDateString())
-    );
-    return { upcoming: up };
+    const up = sorted.filter((e) => new Date(e.dateISO) >= new Date(today.toDateString()));
+    const pa = sorted.filter((e) => new Date(e.dateISO) < new Date(today.toDateString())).reverse();
+    return { upcoming: up, past: pa };
   }, []);
 
   // Conectar MetaMask
   const connectWallet = async () => {
-    const ethWindow = window as typeof window & {
-      ethereum?: {
-        request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      };
-    };
-
+    const ethWindow = window as EthereumWindow;
     if (!ethWindow.ethereum) {
       alert("Instala MetaMask para conectar tu wallet");
       return;
     }
-
     try {
       const accounts = (await ethWindow.ethereum.request({
         method: "eth_requestAccounts",
       })) as string[];
       setWallet(accounts[0]);
-    } catch (err) {
-      console.error(err);
+    } catch (e: unknown) {
+      console.error(e);
       alert("No se pudo conectar la wallet");
-    }
-  };
-
-  // Registrar jugador en Firebase
-  const registerPlayer = async (nickname: string, eventId: string, txHash: string) => {
-    try {
-      const callable = httpsCallable(functions, "registerPlayer");
-      const res = await callable({ wallet, nickname, eventId, txHash });
-      alert("✅ Registro exitoso en Firebase");
-      console.log("Respuesta:", res);
-    } catch (err) {
-      console.error(err);
-      alert("❌ No se pudo registrar en Firebase");
     }
   };
 
@@ -129,11 +114,8 @@ export default function Page() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const nickname = (e.currentTarget.elements.namedItem(
-                  "nickname"
-                ) as HTMLInputElement).value;
-                const txHash = "0x-demo-hash"; // Aquí debería ir el hash real del pago
-                registerPlayer(nickname, "fyf-br-001", txHash);
+                const nickname = (e.currentTarget.elements.namedItem("nickname") as HTMLInputElement).value;
+                alert(`Registrado: ${nickname} con wallet ${wallet}`);
               }}
               className="flex flex-col gap-3"
             >
