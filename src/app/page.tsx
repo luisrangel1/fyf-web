@@ -1,12 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
+import { ethers } from "ethers";
 
 /* ----------------------- Tipos ----------------------- */
 type EventItem = {
   id: string;
   title: string;
   dateISO: string; // YYYY-MM-DD
-  mode: "Solo" | "Dúos" | "Escuadra" | "Custom";
+  mode: string;
   prize: string;
   entry: string;
   region: string;
@@ -14,7 +15,6 @@ type EventItem = {
   registerUrl?: string;
 };
 
-// Tipado para window.ethereum
 interface EthereumWindow extends Window {
   ethereum?: {
     request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -36,15 +36,50 @@ const EVENTS: EventItem[] = [
   },
 ];
 
+/* ----------------------- Configuración del token ----------------------- */
+const TOKEN_NAME = "FireYouFire";
+const TOKEN_SYMBOL = "FYF";
+const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae"; // contrato FYF
+const RECIPIENT = "0x290117a497f83aA436Eeca928b4a8Fa3857ed829"; // ✅ tu wallet
+const AMOUNT = "15"; // entrada en FYF
+
+/* ----------------------- Función de pago ----------------------- */
+async function payEntry() {
+  try {
+    const ethWindow = window as any;
+    if (!ethWindow.ethereum) {
+      alert("Instala MetaMask para continuar");
+      return;
+    }
+
+    const provider = new ethers.BrowserProvider(ethWindow.ethereum);
+    const signer = await provider.getSigner();
+
+    const abi = [
+      "function transfer(address to, uint amount) returns (bool)",
+      "function decimals() view returns (uint8)",
+    ];
+    const token = new ethers.Contract(TOKEN_ADDRESS, abi, signer);
+
+    const decimals = await token.decimals();
+    const amount = ethers.parseUnits(AMOUNT, decimals);
+
+    const tx = await token.transfer(RECIPIENT, amount);
+    await tx.wait();
+
+    alert(
+      `✅ Pago enviado.\n\nCopia este ID de transacción: ${tx.hash}\n\n📩 Ahora envíalo junto con tu nick de COD Mobile al grupo de Telegram del evento.`
+    );
+  } catch (err) {
+    console.error(err);
+    alert("❌ Error al enviar el pago");
+  }
+}
+
 /* ----------------------- Página ----------------------- */
 export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [showEvents, setShowEvents] = useState(true);
-
-  // 🔧 Configuración básica
-  const TOKEN_NAME = "FireYouFire";
-  const TOKEN_SYMBOL = "FYF";
-  const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae";
 
   // Separar próximos vs pasados
   const { upcoming, past } = useMemo(() => {
@@ -52,8 +87,12 @@ export default function Page() {
     const sorted = [...EVENTS].sort(
       (a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime()
     );
-    const up = sorted.filter((e) => new Date(e.dateISO) >= new Date(today.toDateString()));
-    const pa = sorted.filter((e) => new Date(e.dateISO) < new Date(today.toDateString())).reverse();
+    const up = sorted.filter(
+      (e) => new Date(e.dateISO) >= new Date(today.toDateString())
+    );
+    const pa = sorted
+      .filter((e) => new Date(e.dateISO) < new Date(today.toDateString()))
+      .reverse();
     return { upcoming: up, past: pa };
   }, []);
 
@@ -101,7 +140,9 @@ export default function Page() {
             onClick={wallet ? undefined : connectWallet}
             className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 shadow"
           >
-            {wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "Conectar Wallet"}
+            {wallet
+              ? wallet.slice(0, 6) + "…" + wallet.slice(-4)
+              : "Conectar Wallet"}
           </button>
         </div>
       </header>
@@ -114,7 +155,11 @@ export default function Page() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const nickname = (e.currentTarget.elements.namedItem("nickname") as HTMLInputElement).value;
+                const nickname = (
+                  e.currentTarget.elements.namedItem(
+                    "nickname"
+                  ) as HTMLInputElement
+                ).value;
                 alert(`Registrado: ${nickname} con wallet ${wallet}`);
               }}
               className="flex flex-col gap-3"
@@ -134,8 +179,81 @@ export default function Page() {
               </button>
             </form>
           ) : (
-            <p className="text-neutral-400">Conecta tu wallet para registrarte.</p>
+            <p className="text-neutral-400">
+              Conecta tu wallet para registrarte.
+            </p>
           )}
+        </div>
+      </section>
+
+      {/* Eventos de prueba */}
+      {showEvents && (
+        <section className="max-w-6xl mx-auto px-4 mt-6">
+          <h2 className="text-xl font-extrabold mb-3">Eventos</h2>
+          {upcoming.map((event) => (
+            <div
+              key={event.id}
+              className="rounded-2xl p-4 mb-4 shadow border border-neutral-800 bg-white/5"
+            >
+              <h3 className="font-bold">{event.title}</h3>
+              <p>📅 {event.dateISO}</p>
+              <p>🎮 {event.mode}</p>
+              <p>💰 Entrada: {event.entry}</p>
+              <p>🏆 Premio: {event.prize}</p>
+              {event.registerUrl && (
+                <a
+                  href={event.registerUrl}
+                  target="_blank"
+                  className="text-blue-400 underline"
+                >
+                  Ir al enlace de registro
+                </a>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* 🚀 Evento especial del 16/09 */}
+      <section className="max-w-6xl mx-auto px-4 mt-6">
+        <div className="rounded-2xl p-6 shadow-lg border border-neutral-800 bg-white/5">
+          <h2 className="text-xl font-extrabold mb-3">
+            FYF Open Especial – Battle Royale (16 de Septiembre)
+          </h2>
+          <p className="mb-2">🎮 Modo: Battle Royale</p>
+          <p className="mb-2">💰 Entrada: 15 FYF</p>
+          <p className="mb-2">🏆 Premio: 1 USD en FYF por cada kill</p>
+          <p className="mb-4 text-sm text-neutral-300">
+            Los jugadores pagan <strong>15 FYF</strong> para entrar a la sala del
+            evento. Por cada kill recibirán <strong>1 USD en FYF</strong> directo
+            a su wallet de MetaMask. Una vez pagada la entrada, copia el{" "}
+            <strong>ID de la transacción</strong> y envíalo con tu nick de COD
+            Mobile al grupo de Telegram.
+          </p>
+          <button
+            onClick={payEntry}
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 font-bold"
+          >
+            🔥 Pagar inscripción (15 FYF)
+          </button>
+          <div className="mt-3">
+            <a
+              href={`https://metamask.app.link/send/${TOKEN_ADDRESS}?address=${RECIPIENT}&value=${AMOUNT}`}
+              target="_blank"
+              className="text-blue-400 underline"
+            >
+              👉 Pagar directo desde MetaMask
+            </a>
+          </div>
+          <div className="mt-3">
+            <a
+              href="https://t.me/+B7QvutUIkGVhNmUx"
+              target="_blank"
+              className="text-blue-400 underline"
+            >
+              📩 Enviar ID de pago y tu nick en Telegram
+            </a>
+          </div>
         </div>
       </section>
     </main>
