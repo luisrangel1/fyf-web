@@ -46,7 +46,7 @@ const AMOUNT = "15"; // entrada en FYF
 /* ----------------------- Función de pago ----------------------- */
 async function payEntry() {
   try {
-    const ethWindow = window as any;
+    const ethWindow = window as unknown as EthereumWindow;
     if (!ethWindow.ethereum) {
       alert("Instala MetaMask para continuar");
       return;
@@ -79,10 +79,10 @@ async function payEntry() {
 /* ----------------------- Página ----------------------- */
 export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
-  const [showEvents, setShowEvents] = useState(true);
+  const [showEvents] = useState(true);
 
-  // Separar próximos vs pasados
-  const { upcoming, past } = useMemo(() => {
+  // Separar próximos eventos
+  const { upcoming } = useMemo(() => {
     const today = new Date();
     const sorted = [...EVENTS].sort(
       (a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime()
@@ -90,10 +90,7 @@ export default function Page() {
     const up = sorted.filter(
       (e) => new Date(e.dateISO) >= new Date(today.toDateString())
     );
-    const pa = sorted
-      .filter((e) => new Date(e.dateISO) < new Date(today.toDateString()))
-      .reverse();
-    return { upcoming: up, past: pa };
+    return { upcoming: up };
   }, []);
 
   // Conectar MetaMask
@@ -180,9 +177,7 @@ export default function Page() {
               </button>
             </form>
           ) : (
-            <p className="text-neutral-400">
-              Conecta tu wallet para registrarte.
-            </p>
+            <p className="text-neutral-400">Conecta tu wallet para registrarte.</p>
           )}
         </div>
       </section>
@@ -260,4 +255,3 @@ export default function Page() {
     </main>
   );
 }
-
