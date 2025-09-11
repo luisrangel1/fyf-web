@@ -1,12 +1,16 @@
 "use client";
 import { useMemo, useState } from "react";
+import { ethers } from "ethers";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { db } from "./firebase"; // Asegúrate de tener tu firebase.ts
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 /* ----------------------- Tipos ----------------------- */
 type EventItem = {
   id: string;
   title: string;
-  dateISO: string; // YYYY-MM-DD
-  mode: "Solo" | "Dúos" | "Escuadra" | "Custom";
+  dateISO: string;
+  mode: string;
   prize: string;
   entry: string;
   region: string;
@@ -14,181 +18,184 @@ type EventItem = {
   registerUrl?: string;
 };
 
-/* ----------------------- Tipado Ethereum ----------------------- */
 interface EthereumWindow extends Window {
-  ethereum?: {
-    request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  };
+  ethereum?: any;
 }
 
-/* ----------------------- Datos ----------------------- */
+/* ----------------------- Eventos ----------------------- */
 const EVENTS: EventItem[] = [
   {
-    id: "fyf-open-001",
-    title: "FYF Open #1 – COD Mobile",
-    dateISO: "2025-09-28",
-    mode: "Escuadra",
-    prize: "$100 en FYF",
-    entry: "Gratis",
-    region: "LATAM",
-    rules: "Partidas BR, mejor de 3. Anti-cheat estricto.",
-    registerUrl: "https://t.me/+B7QvutUIkGVhNmUx",
-  },
-  {
-    id: "fyf-duos-002",
-    title: "Dúos Tácticos – Edición FYF",
-    dateISO: "2025-10-05",
-    mode: "Dúos",
-    prize: "Skins + 5,000 FYF",
-    entry: "5 FYF",
+    id: "fyf-br-apertura",
+    title: "🔥 Apertura FYF – Battle Royale",
+    dateISO: "2025-03-16",
+    mode: "BR (20 jugadores)",
+    prize: "1 USD en FYF por cada kill",
+    entry: "15 FYF",
     region: "Global",
-    rules: "MP rankeado, límite de 2 dispositivos por equipo.",
-    registerUrl: "https://t.me/+B7QvutUIkGVhNmUx",
-  },
-  {
-    id: "fyf-solo-003",
-    title: "Solo Snipers Night",
-    dateISO: "2025-10-12",
-    mode: "Solo",
-    prize: "Top 3: 3,000 / 1,500 / 500 FYF",
-    entry: "Gratis",
-    region: "LATAM",
-    rules: "Sólo francotiradores, sin perks explosivos.",
+    rules: "Solo 20 participantes, 1 cuenta por jugador.",
   },
 ];
 
 /* ----------------------- Página ----------------------- */
 export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
-  const [showEvents, setShowEvents] = useState(true);
+  const [nickname, setNickname] = useState("");
+  const [players, setPlayers] = useState<{ nickname: string; wallet: string }[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Configuración básica
-  const TOKEN_NAME = "FireYouFire";
-  const TOKEN_SYMBOL = "FYF";
   const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae";
-  const PANCAKE_SWAP_LINK = `https://pancakeswap.finance/swap?outputCurrency=${TOKEN_ADDRESS}`;
+  const TREASURY_ADDRESS = "0x290117a497f83aA436Eeca928b4a8Fa3857ed829";
+  const ENTRY_FEE = "15";
 
-  // Separar próximos vs pasados
-  const { upcoming, past } = useMemo(() => {
+  const TOKEN_ABI = [
+    "function transfer(address to, uint256 amount) public returns (bool)",
+    "function decimals() public view returns (uint8)",
+  ];
+
+  const { upcoming } = useMemo(() => {
     const today = new Date();
     const sorted = [...EVENTS].sort(
       (a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime()
     );
-    const up = sorted.filter((e) => new Date(e.dateISO) >= new Date(today.toDateString()));
-    const pa = sorted.filter((e) => new Date(e.dateISO) < new Date(today.toDateString())).reverse();
-    return { upcoming: up, past: pa };
+    const up = sorted.filter((e) => new Date(e.dateISO) >= today);
+    return { upcoming: up };
   }, []);
 
   // Conectar MetaMask
   const connectWallet = async () => {
     const ethWindow = window as EthereumWindow;
     if (!ethWindow.ethereum) {
-      alert("Instala MetaMask para conectar tu wallet");
+      alert("Instala MetaMask");
       return;
     }
     try {
-      const accounts = (await ethWindow.ethereum.request({
-        method: "eth_requestAccounts",
-      })) as string[];
+      const accounts = await ethWindow.ethereum.request({ method: "eth_requestAccounts" });
       setWallet(accounts[0]);
-    } catch (e) {
-      console.error(e);
-      alert("No se pudo conectar la wallet");
+    } catch (err) {
+      console.error(err);
     }
   };
 
+  // Registro y pago
+  const registerAndPay = async () => {
+    if (!wallet || !nickname) {
+      alert("Conecta tu wallet y escribe tu nick.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const provider = new ethers.BrowserProvider((window as EthereumWindow).ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, signer);
+
+      const decimals = await contract.decimals();
+      const amount = ethers.parseUnits(ENTRY_FEE, decimals);
+
+      // Enviar transacción
+      const tx = await contract.transfer(TREASURY_ADDRESS, amount);
+      await tx.wait();
+
+      // Llamar a Cloud Function para verificar
+      const functions = getFunctions();
+      const verifyAndRegister = httpsCallable(functions, "verifyAndRegister");
+      const result = await verifyAndRegister({
+        txHash: tx.hash,
+        nickname,
+        wallet,
+        eventId: "fyf-br-apertura",
+      });
+
+      alert("✅ Registro confirmado en backend: " + (result.data as any).message);
+    } catch (err) {
+      console.error(err);
+      alert("❌ Error en el registro");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Suscripción en tiempo real a jugadores
+  useMemo(() => {
+    const q = query(collection(db, "registrations"), where("eventId", "==", "fyf-br-apertura"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list: { nickname: string; wallet: string }[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data() as any;
+        list.push({ nickname: data.nickname, wallet: data.wallet });
+      });
+      setPlayers(list);
+    });
+    return () => unsub();
+  }, []);
+
   return (
     <main className="min-h-screen pb-16 bg-black text-white">
-      {/* Header */}
-      <header className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-red-600 grid place-items-center shadow-lg">
-            <span className="font-black">FYF</span>
-          </div>
-          <div>
-            <div className="text-lg font-bold">
-              {TOKEN_NAME} <span className="text-red-500">({TOKEN_SYMBOL})</span>
-            </div>
-            <div className="text-xs text-neutral-300">Play • Earn • Fire</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowEvents(!showEvents)}
-            className="px-4 py-2 rounded-full border border-white/20 hover:bg-white/10 text-sm"
-          >
-            {showEvents ? "Ocultar eventos" : "Ver eventos"}
-          </button>
-          <button
-            onClick={wallet ? undefined : connectWallet}
-            className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 shadow"
-          >
-            {wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "Conectar Wallet"}
-          </button>
-        </div>
+      <header className="p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold">🔥 FireYouFire</h1>
+        <button
+          onClick={wallet ? undefined : connectWallet}
+          className="px-4 py-2 rounded bg-red-600 hover:bg-red-700"
+        >
+          {wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "Conectar Wallet"}
+        </button>
       </header>
 
-      {/* Compra rápida */}
-      <section className="max-w-6xl mx-auto px-4">
-        <div className="rounded-2xl p-6 shadow-lg border border-neutral-800 bg-white/5">
-          <h2 className="text-2xl font-extrabold mb-2">Compra rápida</h2>
-          <p className="text-neutral-300">Compra el token en PancakeSwap:</p>
-          <a
-            href={PANCAKE_SWAP_LINK}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-block mt-4 px-5 py-3 rounded-xl bg-white text-black font-semibold hover:bg-neutral-200"
-          >
-            💱 PancakeSwap
-          </a>
-        </div>
-      </section>
+      <section className="max-w-3xl mx-auto p-6">
+        <h2 className="text-2xl font-extrabold mb-4">Evento disponible</h2>
+        {upcoming.map((ev) => (
+          <div key={ev.id} className="p-4 border rounded mb-4 bg-white/10">
+            <h3 className="text-xl font-bold">{ev.title}</h3>
+            <p className="text-sm text-neutral-300">{ev.prize}</p>
+            <p className="mt-2">Entrada: {ev.entry}</p>
 
-      {/* Eventos */}
-      {showEvents && (
-        <section className="max-w-6xl mx-auto px-4 mt-10">
-          <h2 className="text-2xl font-extrabold">Eventos & Torneos – COD Mobile</h2>
-          <div className="mt-5">
-            <h3 className="text-lg font-bold text-green-400">Próximos</h3>
-            {upcoming.length === 0 ? (
-              <p className="text-neutral-400 mt-2">No hay torneos próximos.</p>
-            ) : (
-              <div className="mt-3 grid md:grid-cols-2 gap-4">
-                {upcoming.map((ev) => (
-                  <EventCard key={ev.id} ev={ev} />
-                ))}
-              </div>
+            {wallet && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  registerAndPay();
+                }}
+                className="mt-3 flex gap-2"
+              >
+                <input
+                  type="text"
+                  placeholder="Tu nick en COD Mobile"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  className="px-3 py-2 rounded text-black"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-700"
+                >
+                  {loading ? "Procesando..." : "Registrar y pagar"}
+                </button>
+              </form>
             )}
           </div>
-        </section>
-      )}
+        ))}
+
+        <h2 className="text-xl font-bold mt-6">👥 Jugadores registrados</h2>
+        {players.length === 0 ? (
+          <p className="text-neutral-400 mt-2">Nadie registrado aún.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {players.map((p, i) => (
+              <li
+                key={i}
+                className="px-4 py-2 bg-white/5 border border-white/10 rounded flex justify-between"
+              >
+                <span>{p.nickname}</span>
+                <span className="text-xs text-neutral-400">
+                  {p.wallet.slice(0, 6)}…{p.wallet.slice(-4)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }
-
-/* ----------------------- Componentes ----------------------- */
-function EventCard({ ev }: { ev: EventItem }) {
-  const date = new Date(ev.dateISO);
-  const pretty = date.toLocaleDateString();
-
-  return (
-    <article className="rounded-2xl p-5 border shadow-lg border-red-800/40 bg-gradient-to-br from-red-900/20 to-black">
-      <h4 className="text-lg font-bold">{ev.title}</h4>
-      <p className="text-sm text-neutral-400">{pretty} • {ev.region}</p>
-      <p className="mt-2 text-sm">Premio: {ev.prize}</p>
-      <p className="text-sm">Entrada: {ev.entry}</p>
-      {ev.rules && <p className="mt-2 text-xs text-neutral-400">{ev.rules}</p>}
-      {ev.registerUrl && (
-        <a
-          href={ev.registerUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-block mt-3 px-4 py-2 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300"
-        >
-          Registrarme
-        </a>
-      )}
-    </article>
-  );
-}
-
