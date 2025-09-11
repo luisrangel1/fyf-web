@@ -16,6 +16,12 @@ type EventItem = {
   registerUrl?: string;
 };
 
+type RegisterResponse = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
+
 interface EthereumWindow extends Window {
   ethereum?: {
     request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -167,7 +173,7 @@ export default function Page() {
                     return;
                   }
 
-                  const result: any = await registerPlayerOnCall({
+                  const result: RegisterResponse = await registerPlayerOnCall({
                     wallet,
                     nickname,
                     eventId: "fyf-open-001", // 👈 aquí defines el evento
@@ -177,7 +183,7 @@ export default function Page() {
                   if (result.success) {
                     alert(`✅ Registrado: ${nickname} con wallet ${wallet}`);
                   } else {
-                    alert(`❌ Error: ${result.error}`);
+                    alert(`❌ Error: ${result.error || "Error desconocido"}`);
                   }
                 } catch (err) {
                   console.error(err);
@@ -279,3 +285,4 @@ export default function Page() {
     </main>
   );
 }
+
