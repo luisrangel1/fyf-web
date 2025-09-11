@@ -130,15 +130,16 @@ export default function Page() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowEvents(!showEvents)}
-            className="px-4 py-2 rounded-full border border-white/20 hover:bg-white/10 text-sm"
+          <a
+            href="https://pancakeswap.finance/swap?outputCurrency=0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae&chain=bsc"
+            target="_blank"
+            className="px-4 py-2 rounded-full bg-green-600 hover:bg-green-700 shadow text-sm font-bold"
           >
-            {showEvents ? "Ocultar eventos" : "Ver eventos"}
-          </button>
+            🛒 Comprar FYF
+          </a>
           <button
             onClick={wallet ? undefined : connectWallet}
-            className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 shadow"
+            className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 shadow text-sm"
           >
             {wallet
               ? wallet.slice(0, 6) + "…" + wallet.slice(-4)
@@ -259,3 +260,4 @@ export default function Page() {
     </main>
   );
 }
+
