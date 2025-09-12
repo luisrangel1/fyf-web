@@ -1,6 +1,6 @@
-import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
-import { getEventPriceUSD, sanitizeNickname } from "src/lib/payments";
+import Stripe from "stripe";
+import { getEventPriceUSD, sanitizeNickname } from "@/lib/payments";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2024-06-20",
@@ -9,36 +9,38 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
 export async function POST(req: NextRequest) {
   try {
     const { eventId, nickname, wallet } = await req.json();
-    if (!eventId || !nickname) {
-      return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
-    }
 
-    const price = getEventPriceUSD(eventId);
+    const amountUSD = getEventPriceUSD(eventId);
+    const sanitizedNick = sanitizeNickname(nickname);
 
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
       payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
             currency: "usd",
-            unit_amount: Math.round(price * 100),
             product_data: {
               name: `Inscripción ${eventId}`,
-              description: `Registro: ${sanitizeNickname(nickname)}`,
+              description: `Jugador: ${sanitizedNick}`,
             },
+            unit_amount: amountUSD * 100, // en centavos
           },
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/?paid=stripe&eventId=${eventId}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/?cancelled=stripe`,
-      metadata: { eventId, nickname: sanitizeNickname(nickname), wallet: wallet || "" },
+      mode: "payment",
+      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/?canceled=true`,
+      metadata: {
+        eventId,
+        nickname: sanitizedNick,
+        wallet: wallet || "N/A",
+      },
     });
 
-    return NextResponse.json({ id: session.id, url: session.url });
-  } catch (err: any) {
-    console.error(err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ id: session.id });
+  } catch (err: unknown) {
+    console.error("❌ Error creando sesión de Stripe:", err);
+    return NextResponse.json({ error: "Stripe error" }, { status: 500 });
   }
 }

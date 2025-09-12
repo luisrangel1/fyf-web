@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { appendToSheet } from "src/lib/sheets";
+import { appendToSheet } from "@/lib/sheets";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2024-06-20",
@@ -18,12 +18,11 @@ export async function POST(req: NextRequest) {
       sig,
       process.env.STRIPE_WEBHOOK_SECRET as string
     );
-  } catch (err: any) {
-    console.error("❌ Error verificando webhook:", err.message);
+  } catch (err: unknown) {
+    console.error("❌ Error verificando webhook:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  // ✅ Procesamos el evento de pago completado
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 
@@ -47,7 +46,7 @@ export async function POST(req: NextRequest) {
       });
 
       console.log("✅ Registro guardado en Google Sheets:", nickname);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("❌ Error guardando en Google Sheets:", err);
     }
   }
