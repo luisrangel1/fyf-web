@@ -1,9 +1,8 @@
 export function getEventPriceUSD(eventId: string): number {
-  // Ajusta el precio según el evento
-  if (eventId === "fyf-open-001") return 5;
+  // De momento, todos los eventos cuestan 5 USD
   return 5;
 }
 
-export function sanitizeNickname(n: string) {
-  return (n || "").trim().slice(0, 32);
+export function sanitizeNickname(nickname: string): string {
+  return nickname.replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 20);
 }
