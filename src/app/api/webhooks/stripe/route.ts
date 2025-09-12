@@ -43,4 +43,11 @@ export async function POST(req: NextRequest) {
         payerEmail: session.customer_email || "unknown",
       });
 
-      console.log("✅ Registro guardado en Google Sheets:", nickname)
+      console.log("✅ Registro guardado en Google Sheets:", nickname);
+    } catch (err: unknown) {
+      console.error("❌ Error guardando en Google Sheets:", err);
+    }
+  }
+
+  return NextResponse.json({ received: true }, { status: 200 });
+}
