@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -21,7 +17,14 @@
       {
         "name": "next"
       }
-    ]
+    ],
+
+    // 👇 añadimos soporte para alias
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "src/*": ["src/*"]
+    }
   },
   "include": [
     "**/*.ts",
@@ -29,8 +32,5 @@
     "next-env.d.ts",
     ".next/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "functions"
-  ] // 👈 añadimos esto
+  "exclude": ["node_modules", "functions"]
 }
