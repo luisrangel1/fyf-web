@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { appendToSheet } from "@/lib/sheets";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2024-06-20",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature") as string;
@@ -45,11 +43,4 @@ export async function POST(req: NextRequest) {
         payerEmail: session.customer_email || "unknown",
       });
 
-      console.log("✅ Registro guardado en Google Sheets:", nickname);
-    } catch (err: unknown) {
-      console.error("❌ Error guardando en Google Sheets:", err);
-    }
-  }
-
-  return NextResponse.json({ received: true }, { status: 200 });
-}
+      console.log("✅ Registro guardado en Google Sheets:", nickname)
