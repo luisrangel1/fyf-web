@@ -1,18 +1,12 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { ethers } from "ethers";
+const { ethers } = require("ethers");
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// 🔧 Configuración del token FYF
-const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae";
-// const TREASURY_ADDRESS = "0x290117a497f83aA436Eeca928b4a8Fa3857ed829";
-// const ENTRY_FEE = ethers.parseUnits("15", 18);
-// const TOKEN_ABI = [
-//   "function transfer(address to, uint256 amount) public returns (bool)",
-//   "function decimals() public view returns (uint8)",
-// ];
+// 🔧 Configuración de direcciones
+const RECIPIENT = "0xB1381123733A231B0A763130c80d9E3c80E76302"; // 👈 Tu nueva wallet receptora
 
 export const registerPlayer = functions.https.onCall(
   async (request, context) => {
@@ -42,12 +36,12 @@ export const registerPlayer = functions.https.onCall(
         );
       }
 
-      // 2. Validar que el pago fue al contrato FYF
+      // 2. Validar que el pago fue a la wallet receptora del evento
       const tx = await provider.getTransaction(txHash);
-      if (!tx || !tx.to || tx.to.toLowerCase() !== TOKEN_ADDRESS.toLowerCase()) {
+      if (!tx || !tx.to || tx.to.toLowerCase() !== RECIPIENT.toLowerCase()) {
         throw new functions.https.HttpsError(
           "permission-denied",
-          "El pago no fue al contrato FYF"
+          "El pago no fue a la wallet del evento"
         );
       }
 
@@ -89,3 +83,4 @@ export const registerPlayer = functions.https.onCall(
     }
   }
 );
+

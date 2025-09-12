@@ -41,7 +41,7 @@ const EVENTS: EventItem[] = [
 const TOKEN_NAME = "FireYouFire";
 const TOKEN_SYMBOL = "FYF";
 const TOKEN_ADDRESS = "0x126b8d8641fb27c312dffdc2c03bbd1e95bd25ae"; // contrato FYF
-const RECIPIENT = "0x290117a497f83aA436Eeca928b4a8Fa3857ed829"; // ✅ tu wallet
+const RECIPIENT = "0xB1381123733A231B0A763130c80d9E3c80E76302"; // ✅ tu wallet
 const AMOUNT = "15"; // entrada en FYF
 
 /* ----------------------- Función de pago ----------------------- */
