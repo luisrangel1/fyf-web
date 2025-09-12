@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
-import { getEventPriceUSD, sanitizeNickname } from "@/lib/payments";
+import { getEventPriceUSD, sanitizeNickname } from "src/lib/payments";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2024-06-20",
