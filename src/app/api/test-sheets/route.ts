@@ -3,12 +3,11 @@ import { google } from "googleapis";
 
 export async function GET() {
   try {
-    const auth = new google.auth.JWT(
-      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      undefined,
-      (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "").replace(/\\n/g, "\n"),
-      ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    );
+    const auth = new google.auth.JWT({
+      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "").replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
 
     const sheets = google.sheets({ version: "v4", auth });
 
@@ -29,4 +28,5 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
 
