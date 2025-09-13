@@ -21,11 +21,12 @@ export async function GET() {
       ok: true,
       title: res.data.properties?.title || "Sin título",
     });
-  } catch (err: any) {
-    console.error("❌ Error en test-sheets route:", err);
-    return NextResponse.json(
-      { ok: false, error: err.message || "Error desconocido" },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Error desconocido";
+
+    console.error("❌ Error en test-sheets route:", message);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
