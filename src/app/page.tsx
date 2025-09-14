@@ -4,9 +4,6 @@ import { useMemo, useState } from "react";
 import { ethers } from "ethers";
 import { loadStripe } from "@stripe/stripe-js";
 
-// Inicializa Stripe en el cliente
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string);
-
 type EventItem = {
   id: string;
   title: string;
@@ -103,6 +100,7 @@ export default function Page() {
     const nickname = prompt("Tu nick en COD Mobile:")?.trim();
     if (!nickname) return;
 
+    // 1️⃣ Llamamos a nuestro backend para crear la sesión
     const res = await fetch("/api/payments/stripe/create-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -112,17 +110,16 @@ export default function Page() {
     const data = await res.json();
 
     if (data?.id) {
-      const stripe = await stripePromise;
+      // 2️⃣ Redirigimos a Stripe Checkout
+      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
       if (!stripe) {
-        alert("Stripe no está inicializado");
+        alert("Stripe no se pudo cargar");
         return;
       }
-
-      // 🔥 Redirige al checkout de Stripe
       const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
       if (error) {
-        console.error("❌ Error en redirectToCheckout:", error);
-        alert("Error al redirigir a Stripe");
+        console.error(error);
+        alert("❌ Error redirigiendo a Stripe");
       }
     } else {
       alert("No se pudo iniciar Stripe");
@@ -179,4 +176,5 @@ export default function Page() {
     </main>
   );
 }
+
 

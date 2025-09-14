@@ -3,9 +3,7 @@ import Stripe from "stripe";
 import { getEventPriceUSD, sanitizeNickname } from "@/lib/payments";
 
 // Inicializa Stripe con tu clave secreta (asegúrate de tener STRIPE_SECRET_KEY en .env.local y en Vercel)
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2024-06-20", // Usa una versión fija para evitar errores futuros
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(req: NextRequest) {
   try {
