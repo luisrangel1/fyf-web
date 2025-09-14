@@ -1,19 +1,18 @@
 "use client";
+import Link from "next/link";
 
 export default function CancelPage() {
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen bg-red-50">
-      <h1 className="text-3xl font-bold text-red-700">❌ Pago cancelado</h1>
-      <p className="mt-4 text-lg text-gray-700">
-        Parece que cancelaste el proceso de pago.  
-        Puedes volver a intentarlo cuando quieras.
-      </p>
-      <a
+    <main className="flex min-h-screen flex-col items-center justify-center p-6">
+      <h1 className="text-3xl font-bold text-red-600">❌ Pago cancelado</h1>
+      <p className="mt-4">Tu pago fue cancelado. Puedes intentarlo de nuevo.</p>
+      <Link
         href="/"
-        className="mt-6 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+        className="mt-6 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
       >
         Volver al inicio
-      </a>
+      </Link>
     </main>
   );
 }
+
