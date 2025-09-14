@@ -17,11 +17,11 @@ type EventItem = {
 const EVENTS: EventItem[] = [
   {
     id: "fyf-open-001",
-    title: "FYF Open #1 – COD Mobile",
-    dateISO: "2025-09-28",
-    mode: "Escuadra",
-    prize: "$100 en FYF",
-    entryUSD: 5,
+    title: "FireYouFire Open #1 – COD Mobile",
+    dateISO: "2025-09-21T22:00:00-04:00", // domingo 21 sept, 10pm hora Venezuela
+    mode: "Battle Royale Individual",
+    prize: "$1 por kill",
+    entryUSD: 1.5,
     region: "LATAM",
   },
 ];
