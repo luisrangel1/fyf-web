@@ -1,8 +1,6 @@
 "use client";
-
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
-import { loadStripe } from "@stripe/stripe-js";
 
 type EventItem = {
   id: string;
@@ -18,11 +16,11 @@ const EVENTS: EventItem[] = [
   {
     id: "fyf-open-001",
     title: "FireYouFire Open #1 – COD Mobile",
-    dateISO: "2025-09-21T22:00:00-04:00", // domingo 21 sept, 10pm hora Venezuela
+    dateISO: "2025-09-21T22:00:00-04:00", // domingo 21 sept 10pm VE
     mode: "Battle Royale Individual",
-    prize: "$1 por kill",
+    prize: "1 USD por kill",
     entryUSD: 1.5,
-    region: "LATAM",
+    region: "Global",
   },
 ];
 
@@ -36,37 +34,10 @@ interface EthereumWindow extends Window {
   ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
 }
 
-async function payWithFYF() {
-  try {
-    const ethWindow = window as unknown as EthereumWindow;
-    if (!ethWindow.ethereum) {
-      alert("Instala MetaMask para continuar");
-      return;
-    }
-
-    const provider = new ethers.BrowserProvider(ethWindow.ethereum);
-    const signer = await provider.getSigner();
-
-    const abi = [
-      "function transfer(address to, uint amount) returns (bool)",
-      "function decimals() view returns (uint8)",
-    ];
-    const token = new ethers.Contract(TOKEN_ADDRESS, abi, signer);
-    const decimals = await token.decimals();
-    const amount = ethers.parseUnits(AMOUNT_FYF, decimals);
-
-    const tx = await token.transfer(RECIPIENT, amount);
-    await tx.wait();
-    alert(`✅ Pago FYF enviado. Tx: ${tx.hash}. Envía tu hash + nick al Telegram.`);
-  } catch (err) {
-    console.error(err);
-    alert("❌ Error al enviar el pago FYF");
-  }
-}
-
 export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [eventId] = useState("fyf-open-001");
+  const [nickname, setNickname] = useState("");
 
   const { current } = useMemo(() => {
     const today = new Date();
@@ -96,11 +67,45 @@ export default function Page() {
     }
   };
 
-  async function payWithStripe() {
-    const nickname = prompt("Tu nick en COD Mobile:")?.trim();
-    if (!nickname) return;
+  async function payWithFYF() {
+    if (!nickname.trim()) {
+      alert("Por favor ingresa tu nick de COD Mobile");
+      return;
+    }
 
-    // 1️⃣ Llamamos a nuestro backend para crear la sesión
+    try {
+      const ethWindow = window as unknown as EthereumWindow;
+      if (!ethWindow.ethereum) {
+        alert("Instala MetaMask para continuar");
+        return;
+      }
+
+      const provider = new ethers.BrowserProvider(ethWindow.ethereum);
+      const signer = await provider.getSigner();
+
+      const abi = [
+        "function transfer(address to, uint amount) returns (bool)",
+        "function decimals() view returns (uint8)",
+      ];
+      const token = new ethers.Contract(TOKEN_ADDRESS, abi, signer);
+      const decimals = await token.decimals();
+      const amount = ethers.parseUnits(AMOUNT_FYF, decimals);
+
+      const tx = await token.transfer(RECIPIENT, amount);
+      await tx.wait();
+      alert(`✅ Pago FYF enviado. Tx: ${tx.hash}. Nick: ${nickname}`);
+    } catch (err) {
+      console.error(err);
+      alert("❌ Error al enviar el pago FYF");
+    }
+  }
+
+  async function payWithStripe() {
+    if (!nickname.trim()) {
+      alert("Por favor ingresa tu nick de COD Mobile");
+      return;
+    }
+
     const res = await fetch("/api/payments/stripe/create-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -108,19 +113,9 @@ export default function Page() {
     });
 
     const data = await res.json();
-
     if (data?.id) {
-      // 2️⃣ Redirigimos a Stripe Checkout
-      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
-      if (!stripe) {
-        alert("Stripe no se pudo cargar");
-        return;
-      }
-      const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
-      if (error) {
-        console.error(error);
-        alert("❌ Error redirigiendo a Stripe");
-      }
+      const stripe = (window as any).Stripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY);
+      await stripe.redirectToCheckout({ sessionId: data.id });
     } else {
       alert("No se pudo iniciar Stripe");
     }
@@ -157,7 +152,16 @@ export default function Page() {
             Evento: <b>{current.title}</b> · Inscripción ${current.entryUSD} USD
           </p>
 
-          <div className="flex flex-col gap-3">
+          {/* Input Nickname */}
+          <input
+            type="text"
+            placeholder="Tu nick en COD Mobile"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-600 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+
+          <div className="flex flex-col gap-3 mt-4">
             <button
               onClick={payWithFYF}
               className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 font-bold"
