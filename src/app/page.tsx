@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
 
 type EventItem = {
   id: string;
@@ -61,8 +62,9 @@ export default function Page() {
         method: "eth_requestAccounts",
       })) as string[];
       setWallet(accounts[0]);
-    } catch (e) {
-      console.error(e);
+    } catch (e: unknown) {
+      if (e instanceof Error) console.error(e.message);
+      else console.error(e);
       alert("No se pudo conectar la wallet");
     }
   };
@@ -94,8 +96,9 @@ export default function Page() {
       const tx = await token.transfer(RECIPIENT, amount);
       await tx.wait();
       alert(`✅ Pago FYF enviado. Tx: ${tx.hash}. Nick: ${nickname}`);
-    } catch (err) {
-      console.error(err);
+    } catch (err: unknown) {
+      if (err instanceof Error) console.error(err.message);
+      else console.error(err);
       alert("❌ Error al enviar el pago FYF");
     }
   }
@@ -106,18 +109,31 @@ export default function Page() {
       return;
     }
 
-    const res = await fetch("/api/payments/stripe/create-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId, nickname, wallet }),
-    });
+    try {
+      const res = await fetch("/api/payments/stripe/create-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, nickname, wallet }),
+      });
 
-    const data = await res.json();
-    if (data?.id) {
-      const stripe = (window as any).Stripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY);
-      await stripe.redirectToCheckout({ sessionId: data.id });
-    } else {
-      alert("No se pudo iniciar Stripe");
+      const data = await res.json();
+
+      if (data?.id) {
+        const stripe: Stripe | null = await loadStripe(
+          process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
+        );
+        if (!stripe) {
+          alert("Error cargando Stripe");
+          return;
+        }
+        await stripe.redirectToCheckout({ sessionId: data.id });
+      } else {
+        alert("No se pudo iniciar Stripe");
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) console.error(err.message);
+      else console.error(err);
+      alert("❌ Error en el pago con Stripe");
     }
   }
 
@@ -180,5 +196,6 @@ export default function Page() {
     </main>
   );
 }
+
 
 
