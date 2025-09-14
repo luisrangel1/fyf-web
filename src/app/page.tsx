@@ -1,6 +1,11 @@
 "use client";
+
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
+import { loadStripe } from "@stripe/stripe-js";
+
+// Inicializa Stripe en el cliente
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string);
 
 type EventItem = {
   id: string;
@@ -105,8 +110,20 @@ export default function Page() {
     });
 
     const data = await res.json();
-    if (data?.url) {
-      window.location.href = data.url;
+
+    if (data?.id) {
+      const stripe = await stripePromise;
+      if (!stripe) {
+        alert("Stripe no está inicializado");
+        return;
+      }
+
+      // 🔥 Redirige al checkout de Stripe
+      const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
+      if (error) {
+        console.error("❌ Error en redirectToCheckout:", error);
+        alert("Error al redirigir a Stripe");
+      }
     } else {
       alert("No se pudo iniciar Stripe");
     }
@@ -162,3 +179,4 @@ export default function Page() {
     </main>
   );
 }
+
