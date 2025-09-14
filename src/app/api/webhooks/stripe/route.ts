@@ -5,7 +5,10 @@ import { appendToSheet } from "@/lib/sheets";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(req: NextRequest) {
-  const sig = req.headers.get("stripe-signature") as string;
+  const sig = req.headers.get("stripe-signature");
+  if (!sig) {
+    return NextResponse.json({ error: "Falta stripe-signature" }, { status: 400 });
+  }
 
   let event: Stripe.Event;
 
@@ -17,7 +20,7 @@ export async function POST(req: NextRequest) {
       process.env.STRIPE_WEBHOOK_SECRET as string
     );
   } catch (err: unknown) {
-    console.error("❌ Error verificando webhook:", err);
+    console.error("❌ Error verificando firma de Stripe:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -43,10 +46,16 @@ export async function POST(req: NextRequest) {
         payerEmail: session.customer_email || "unknown",
       });
 
-      console.log("✅ Registro guardado en Google Sheets:", nickname);
+      console.log("✅ Registro guardado en Google Sheets:", {
+        nickname,
+        eventId,
+        amount: session.amount_total,
+      });
     } catch (err: unknown) {
       console.error("❌ Error guardando en Google Sheets:", err);
     }
+  } else {
+    console.log(`ℹ️ Evento recibido de Stripe: ${event.type} (ignorado)`);
   }
 
   return NextResponse.json({ received: true }, { status: 200 });
