@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ethers } from "ethers";
 
 type EventItem = {
@@ -12,31 +12,13 @@ type EventItem = {
   region: string;
 };
 
-type Method = "free" | "stripe" | "fyf";
-
-type Registration = {
-  eventId: string;
-  nickname: string;
-  method: Method;
-  wallet: string;
-  txId: string;
-  amountUSD: number;
-  payerEmail: string;
-  createdAtISO: string;
-};
-
-type RegistrationsResponse = {
-  rows: Registration[];
-  freeSlotsLeft: number;
-};
-
 const EVENTS: EventItem[] = [
   {
     id: "fyf-open-001",
     title: "FireYouFire Open #1 – COD Mobile",
-    dateISO: "2025-09-21T22:00:00-04:00",
+    dateISO: "2025-09-21T22:00:00-04:00", // domingo 21 sept 10pm VE
     mode: "Battle Royale Individual",
-    prize: "1 USD por kill (Isolated)",
+    prize: "1 USD por kill",
     entryUSD: 1.5,
     region: "Global",
   },
@@ -56,28 +38,16 @@ export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [eventId] = useState("fyf-open-001");
   const [nickname, setNickname] = useState("");
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [freeLeft, setFreeLeft] = useState<number>(15);
 
   const { current } = useMemo(() => {
     const today = new Date();
     const sorted = [...EVENTS].sort(
       (a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime()
     );
-    const up = sorted.find((e) => new Date(e.dateISO) >= new Date(today.toDateString())) || sorted[0];
+    const up =
+      sorted.find((e) => new Date(e.dateISO) >= new Date(today.toDateString())) ||
+      sorted[0];
     return { current: up };
-  }, []);
-
-  async function loadRegistrations() {
-    const res = await fetch(`/api/registrations?eventId=${encodeURIComponent(eventId)}`);
-    if (!res.ok) return;
-    const data = (await res.json()) as RegistrationsResponse;
-    setRegistrations(data.rows);
-    setFreeLeft(data.freeSlotsLeft);
-  }
-
-  useEffect(() => {
-    void loadRegistrations();
   }, []);
 
   const connectWallet = async () => {
@@ -91,41 +61,25 @@ export default function Page() {
         method: "eth_requestAccounts",
       })) as string[];
       setWallet(accounts[0]);
-    } catch {
+    } catch (e) {
+      console.error(e);
       alert("No se pudo conectar la wallet");
     }
   };
-
-  async function registerFree() {
-    if (!nickname.trim()) {
-      alert("Por favor ingresa tu nick de COD Mobile");
-      return;
-    }
-    const res = await fetch("/api/register-free", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId, nickname }),
-    });
-    const data: { ok?: boolean; error?: string } = await res.json();
-    if (res.ok && data.ok) {
-      alert("✅ Inscripción gratuita confirmada");
-      await loadRegistrations();
-    } else {
-      alert(`⚠️ ${data.error ?? "No se pudo registrar gratis"}`);
-    }
-  }
 
   async function payWithFYF() {
     if (!nickname.trim()) {
       alert("Por favor ingresa tu nick de COD Mobile");
       return;
     }
+
     try {
       const ethWindow = window as unknown as EthereumWindow;
       if (!ethWindow.ethereum) {
         alert("Instala MetaMask para continuar");
         return;
       }
+
       const provider = new ethers.BrowserProvider(ethWindow.ethereum);
       const signer = await provider.getSigner();
 
@@ -139,29 +93,9 @@ export default function Page() {
 
       const tx = await token.transfer(RECIPIENT, amount);
       await tx.wait();
-
-      // Registrar en la lista local del evento (store del backend)
-      const regRes = await fetch("/api/register-paid", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId,
-          nickname,
-          wallet: wallet ?? "N/A",
-          txId: String(tx.hash),
-          method: "fyf" as const,
-          amountUSD: 0, // monto FYF opcional (puedes poner conversión si quieres)
-          payerEmail: "N/A",
-        }),
-      });
-
-      if (regRes.ok) {
-        alert(`✅ Pago FYF enviado. Tx: ${String(tx.hash)}. Nick: ${nickname}`);
-        await loadRegistrations();
-      } else {
-        alert("⚠️ Pago realizado pero no se pudo registrar en la lista.");
-      }
-    } catch {
+      alert(`✅ Pago FYF enviado. Tx: ${tx.hash}. Nick: ${nickname}`);
+    } catch (err) {
+      console.error(err);
       alert("❌ Error al enviar el pago FYF");
     }
   }
@@ -171,11 +105,6 @@ export default function Page() {
       alert("Por favor ingresa tu nick de COD Mobile");
       return;
     }
-    // Guardamos temporalmente para que /success lo pueda leer y registrar
-    localStorage.setItem(
-      "lastReg",
-      JSON.stringify({ eventId, nickname, wallet: wallet ?? "N/A" })
-    );
 
     const res = await fetch("/api/payments/stripe/create-session", {
       method: "POST",
@@ -183,19 +112,10 @@ export default function Page() {
       body: JSON.stringify({ eventId, nickname, wallet }),
     });
 
-    const data: { id?: string } = await res.json();
-    if (data?.id) {
-    
-      const stripe = (window as unknown as { Stripe?: (pk: string) => unknown }).Stripe?.(
-        process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
-      ) as { redirectToCheckout: (args: { sessionId: string }) => Promise<unknown> } | undefined;
-
-      if (stripe) {
-        await stripe.redirectToCheckout({ sessionId: data.id });
-      } else {
-        // Fallback: si no tienes Stripe.js, usa success_url/cancel_url definidos en tu endpoint.
-        window.location.href = "/success";
-      }
+    const data: { url?: string } = await res.json();
+    if (data?.url) {
+      // 🔥 Redirige a la página de pago real de Stripe
+      window.location.href = data.url;
     } else {
       alert("No se pudo iniciar Stripe");
     }
@@ -232,6 +152,7 @@ export default function Page() {
             Evento: <b>{current.title}</b> · Inscripción ${current.entryUSD} USD
           </p>
 
+          {/* Input Nickname */}
           <input
             type="text"
             placeholder="Tu nick en COD Mobile"
@@ -242,22 +163,11 @@ export default function Page() {
 
           <div className="flex flex-col gap-3 mt-4">
             <button
-              onClick={registerFree}
-              disabled={freeLeft <= 0}
-              className={`px-4 py-2 rounded-lg font-bold ${
-                freeLeft > 0 ? "bg-green-600 hover:bg-green-700" : "bg-gray-500 cursor-not-allowed"
-              }`}
-            >
-              🆓 Inscribirse gratis ({freeLeft})
-            </button>
-
-            <button
               onClick={payWithFYF}
               className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 font-bold"
             >
               🔥 Pagar con FYF (MetaMask)
             </button>
-
             <button
               onClick={payWithStripe}
               className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 font-bold"
@@ -265,23 +175,12 @@ export default function Page() {
               🌎 Pagar con tarjeta (Stripe)
             </button>
           </div>
-
-          {/* Lista de inscritos */}
-          <div className="mt-8">
-            <h3 className="text-lg font-bold">📋 Lista de inscritos</h3>
-            <ul className="mt-2 space-y-1">
-              {registrations.map((r) => (
-                <li key={`${r.nickname}-${r.createdAtISO}`} className="text-sm text-gray-200">
-                  {r.nickname} — {r.method.toUpperCase()}
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
       </section>
     </main>
   );
 }
+
 
 
 

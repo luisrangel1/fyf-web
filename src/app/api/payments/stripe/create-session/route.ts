@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { sanitizeNickname } from "@/lib/payments";
+import { getEventPriceUSD, sanitizeNickname } from "@/lib/payments";
 
-// Inicializa Stripe con tu clave secreta
+// Inicializa Stripe con tu clave secreta (asegúrate de tener STRIPE_SECRET_KEY en .env.local y en Vercel)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(req: NextRequest) {
   try {
-    const { nickname, wallet } = await req.json();
+    const { eventId, nickname, wallet } = await req.json();
 
-    if (!nickname) {
+    // Valida datos mínimos
+    if (!eventId || !nickname) {
       return NextResponse.json(
-        { error: "Falta el nickname" },
+        { error: "Faltan datos requeridos" },
         { status: 400 }
       );
     }
 
+    // Calcula el precio en USD desde tu helper
+    const amountUSD = getEventPriceUSD(eventId);
     const sanitizedNick = sanitizeNickname(nickname);
 
-    // ⚡ Evento fijo: FireYouFire Open #1 – COD Mobile
-    const amountUSD = 1.5;
-
+    // Crea la sesión de Stripe Checkout
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -28,28 +29,31 @@ export async function POST(req: NextRequest) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Inscripción FireYouFire Open #1 – COD Mobile",
+              name: `Inscripción ${eventId}`,
               description: `Jugador: ${sanitizedNick}`,
             },
-            unit_amount: Math.round(amountUSD * 100), // Stripe trabaja en centavos
+            unit_amount: amountUSD * 100, // Stripe trabaja en centavos
           },
           quantity: 1,
         },
       ],
       mode: "payment",
+      // 👇 Redirecciones a tu dominio en Vercel
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cancel`,
       metadata: {
-        eventId: "fyf-open-001",
+        eventId,
         nickname: sanitizedNick,
         wallet: wallet || "N/A",
       },
     });
 
-    return NextResponse.json({ id: session.id });
-  } catch (err) {
+    // 🚀 Ahora devolvemos la URL segura de Stripe
+    return NextResponse.json({ url: session.url });
+  } catch (err: unknown) {
     console.error("❌ Error creando sesión de Stripe:", err);
     return NextResponse.json({ error: "Stripe error" }, { status: 500 });
   }
 }
+
 
