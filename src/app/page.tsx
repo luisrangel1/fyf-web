@@ -12,6 +12,11 @@ type EventItem = {
   region: string;
 };
 
+type RegisteredUser = {
+  nickname: string;
+  method: "free" | "stripe" | "fyf";
+};
+
 const EVENTS: EventItem[] = [
   {
     id: "fyf-open-001",
@@ -38,6 +43,8 @@ export default function Page() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [eventId] = useState("fyf-open-001");
   const [nickname, setNickname] = useState("");
+  const [registered, setRegistered] = useState<RegisteredUser[]>([]);
+  const [freeSlots, setFreeSlots] = useState(15);
 
   const { current } = useMemo(() => {
     const today = new Date();
@@ -67,6 +74,26 @@ export default function Page() {
     }
   };
 
+  // 🔥 Registro Gratis
+  const registerFree = () => {
+    if (!nickname.trim()) {
+      alert("Por favor ingresa tu nick de COD Mobile");
+      return;
+    }
+    if (freeSlots <= 0) {
+      alert("⚠️ Ya no quedan cupos gratuitos");
+      return;
+    }
+    if (registered.some((r) => r.nickname.toLowerCase() === nickname.toLowerCase())) {
+      alert("⚠️ Este nick ya está registrado");
+      return;
+    }
+    setRegistered([...registered, { nickname, method: "free" }]);
+    setFreeSlots(freeSlots - 1);
+    alert(`✅ Registro gratuito exitoso. Bienvenido ${nickname}!`);
+  };
+
+  // 🔥 Pago con FYF
   async function payWithFYF() {
     if (!nickname.trim()) {
       alert("Por favor ingresa tu nick de COD Mobile");
@@ -93,6 +120,8 @@ export default function Page() {
 
       const tx = await token.transfer(RECIPIENT, amount);
       await tx.wait();
+
+      setRegistered([...registered, { nickname, method: "fyf" }]);
       alert(`✅ Pago FYF enviado. Tx: ${tx.hash}. Nick: ${nickname}`);
     } catch (err) {
       console.error(err);
@@ -100,6 +129,7 @@ export default function Page() {
     }
   }
 
+  // 🔥 Pago con Stripe
   async function payWithStripe() {
     if (!nickname.trim()) {
       alert("Por favor ingresa tu nick de COD Mobile");
@@ -112,10 +142,18 @@ export default function Page() {
       body: JSON.stringify({ eventId, nickname, wallet }),
     });
 
-    const data: { url?: string } = await res.json();
-    if (data?.url) {
-      // 🔥 Redirige a la página de pago real de Stripe
-      window.location.href = data.url;
+    const data: { id?: string } = await res.json();
+    if (data?.id) {
+      const stripe = (window as unknown as { Stripe?: (pk: string) => unknown }).Stripe?.(
+        process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
+      ) as { redirectToCheckout: (args: { sessionId: string }) => Promise<unknown> } | undefined;
+
+      if (stripe) {
+        await stripe.redirectToCheckout({ sessionId: data.id });
+        setRegistered([...registered, { nickname, method: "stripe" }]);
+      } else {
+        alert("Stripe.js no está disponible");
+      }
     } else {
       alert("No se pudo iniciar Stripe");
     }
@@ -163,10 +201,15 @@ export default function Page() {
 
           <div className="flex flex-col gap-3 mt-4">
             <button
-              onClick={payWithFYF}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 font-bold"
+              onClick={registerFree}
+              disabled={freeSlots <= 0}
+              className={`px-4 py-2 rounded-lg font-bold ${
+                freeSlots > 0
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-gray-600 cursor-not-allowed"
+              }`}
             >
-              🔥 Pagar con FYF (MetaMask)
+              🆓 Registro gratuito ({freeSlots} restantes)
             </button>
             <button
               onClick={payWithStripe}
@@ -174,12 +217,40 @@ export default function Page() {
             >
               🌎 Pagar con tarjeta (Stripe)
             </button>
+            <button
+              onClick={payWithFYF}
+              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 font-bold"
+            >
+              🔥 Pagar con FYF (MetaMask)
+            </button>
           </div>
+        </div>
+
+        {/* Lista de inscritos */}
+        <div className="mt-6 rounded-2xl p-6 shadow-lg border border-neutral-800 bg-white/5">
+          <h3 className="text-lg font-bold mb-3">📋 Lista de inscritos</h3>
+          {registered.length === 0 ? (
+            <p className="text-neutral-400">Aún no hay jugadores registrados.</p>
+          ) : (
+            <ul className="space-y-2">
+              {registered.map((r, i) => (
+                <li key={i} className="flex justify-between border-b border-neutral-700 pb-1">
+                  <span>{r.nickname}</span>
+                  <span className="text-sm text-neutral-400">
+                    {r.method === "free" && "🆓 Gratis"}
+                    {r.method === "stripe" && "💳 Stripe"}
+                    {r.method === "fyf" && "🔥 FYF"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
     </main>
   );
 }
+
 
 
 
