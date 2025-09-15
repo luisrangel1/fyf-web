@@ -129,35 +129,35 @@ export default function Page() {
     }
   }
 
-  // 🔥 Pago con Stripe
-  async function payWithStripe() {
-    if (!nickname.trim()) {
-      alert("Por favor ingresa tu nick de COD Mobile");
-      return;
-    }
-
-    const res = await fetch("/api/payments/stripe/create-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId, nickname, wallet }),
-    });
-
-    const data: { id?: string } = await res.json();
-    if (data?.id) {
-      const stripe = (window as unknown as { Stripe?: (pk: string) => unknown }).Stripe?.(
-        process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
-      ) as { redirectToCheckout: (args: { sessionId: string }) => Promise<unknown> } | undefined;
-
-      if (stripe) {
-        await stripe.redirectToCheckout({ sessionId: data.id });
-        setRegistered([...registered, { nickname, method: "stripe" }]);
-      } else {
-        alert("Stripe.js no está disponible");
-      }
-    } else {
-      alert("No se pudo iniciar Stripe");
-    }
+// 🔥 Pago con Stripe
+async function payWithStripe() {
+  if (!nickname.trim()) {
+    alert("Por favor ingresa tu nick de COD Mobile");
+    return;
   }
+
+  const res = await fetch("/api/payments/stripe/create-session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eventId, nickname, wallet }),
+  });
+
+  const data: { id?: string } = await res.json();
+
+  if (data?.id && window.Stripe) {
+    // Inicializa Stripe con tu clave pública
+    const stripe = window.Stripe(
+      process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
+    );
+
+    await stripe.redirectToCheckout({ sessionId: data.id });
+
+    setRegistered([...registered, { nickname, method: "stripe" }]);
+  } else {
+    alert("No se pudo iniciar Stripe");
+  }
+}
+
 
   return (
     <main className="min-h-screen pb-16 bg-black text-white">
