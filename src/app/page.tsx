@@ -146,24 +146,12 @@ async function payWithStripe() {
   const data: { id?: string } = await res.json();
 
   if (data?.id) {
-    const stripe = await loadStripe(
-      process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
-    );
-
-    if (!stripe) {
-      alert("Stripe no pudo inicializarse");
-      return;
-    }
-
-    const { error } = await stripe.redirectToCheckout({
-      sessionId: data.id,
-    });
-
-    if (error) {
-      console.error("❌ Error en redirectToCheckout:", error);
-      alert("No se pudo redirigir a Stripe");
-    } else {
+    const stripe = await stripePromise; // 👈 Aquí inicializa Stripe.js
+    if (stripe) {
+      await stripe.redirectToCheckout({ sessionId: data.id });
       setRegistered([...registered, { nickname, method: "stripe" }]);
+    } else {
+      alert("Stripe.js no está disponible");
     }
   } else {
     alert("No se pudo iniciar Stripe");
