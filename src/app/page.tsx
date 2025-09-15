@@ -185,7 +185,7 @@ export default function Page() {
 
     const data: { id?: string } = await res.json();
     if (data?.id) {
-      // @ts-expect-error Stripe global (cargas Stripe.js si lo usas) — o redirige con success_url
+    
       const stripe = (window as unknown as { Stripe?: (pk: string) => unknown }).Stripe?.(
         process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
       ) as { redirectToCheckout: (args: { sessionId: string }) => Promise<unknown> } | undefined;
