@@ -1,7 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe } from "@stripe/stripe-js"; // 👈 Importa Stripe.js
+
+// 👇 Inicializa stripePromise fuera del componente
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
+);
 
 type EventItem = {
   id: string;
@@ -130,34 +135,33 @@ export default function Page() {
     }
   }
 
-// 🔥 Pago con Stripe
-async function payWithStripe() {
-  if (!nickname.trim()) {
-    alert("Por favor ingresa tu nick de COD Mobile");
-    return;
-  }
-
-  const res = await fetch("/api/payments/stripe/create-session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ eventId, nickname, wallet }),
-  });
-
-  const data: { id?: string } = await res.json();
-
-  if (data?.id) {
-    const stripe = await stripePromise; // 👈 Aquí inicializa Stripe.js
-    if (stripe) {
-      await stripe.redirectToCheckout({ sessionId: data.id });
-      setRegistered([...registered, { nickname, method: "stripe" }]);
-    } else {
-      alert("Stripe.js no está disponible");
+  // 🔥 Pago con Stripe
+  async function payWithStripe() {
+    if (!nickname.trim()) {
+      alert("Por favor ingresa tu nick de COD Mobile");
+      return;
     }
-  } else {
-    alert("No se pudo iniciar Stripe");
-  }
-}
 
+    const res = await fetch("/api/payments/stripe/create-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId, nickname, wallet }),
+    });
+
+    const data: { id?: string } = await res.json();
+
+    if (data?.id) {
+      const stripe = await stripePromise;
+      if (stripe) {
+        await stripe.redirectToCheckout({ sessionId: data.id });
+        setRegistered([...registered, { nickname, method: "stripe" }]);
+      } else {
+        alert("Stripe.js no está disponible");
+      }
+    } else {
+      alert("No se pudo iniciar Stripe");
+    }
+  }
 
   return (
     <main className="min-h-screen pb-16 bg-black text-white">
@@ -250,6 +254,7 @@ async function payWithStripe() {
     </main>
   );
 }
+
 
 
 
