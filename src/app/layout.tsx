@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script"; // 👈 Importamos Script
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,7 +29,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+
+        {/* 👇 Aquí cargamos Stripe.js */}
+        <Script src="https://js.stripe.com/v3/" strategy="afterInteractive" />
       </body>
     </html>
   );
 }
+
