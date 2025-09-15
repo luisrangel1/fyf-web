@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ethers } from "ethers";
+import { loadStripe } from "@stripe/stripe-js";
 
 // 👇 Agrega esta declaración antes de todo lo demás
 declare global {
@@ -153,15 +154,26 @@ async function payWithStripe() {
 
   const data: { id?: string } = await res.json();
 
-  if (data?.id && window.Stripe) {
-    // Inicializa Stripe con tu clave pública
-    const stripe = window.Stripe(
+  if (data?.id) {
+    const stripe = await loadStripe(
       process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY as string
     );
 
-    await stripe.redirectToCheckout({ sessionId: data.id });
+    if (!stripe) {
+      alert("Stripe no pudo inicializarse");
+      return;
+    }
 
-    setRegistered([...registered, { nickname, method: "stripe" }]);
+    const { error } = await stripe.redirectToCheckout({
+      sessionId: data.id,
+    });
+
+    if (error) {
+      console.error("❌ Error en redirectToCheckout:", error);
+      alert("No se pudo redirigir a Stripe");
+    } else {
+      setRegistered([...registered, { nickname, method: "stripe" }]);
+    }
   } else {
     alert("No se pudo iniciar Stripe");
   }
