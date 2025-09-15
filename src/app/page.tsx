@@ -3,15 +3,6 @@ import { useMemo, useState } from "react";
 import { ethers } from "ethers";
 import { loadStripe } from "@stripe/stripe-js";
 
-// 👇 Agrega esta declaración antes de todo lo demás
-declare global {
-  interface Window {
-    Stripe?: (pk: string) => {
-      redirectToCheckout: (args: { sessionId: string }) => Promise<unknown>;
-    };
-  }
-}
-
 type EventItem = {
   id: string;
   title: string;
